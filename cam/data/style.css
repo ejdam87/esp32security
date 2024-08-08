@@ -1,0 +1,77 @@
+
+body
+{
+    display: flex;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    background-color: #808080;
+}
+
+div
+{
+    border: solid;
+}
+
+
+#button-wrapper
+{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: none;
+}
+
+.im-button
+{
+    width: 8%;
+    margin-left: 2%;
+    margin-right: 2%;
+    margin-bottom: 2%;
+    background-color: #808080;
+    border: none; /* Remove default border */
+    cursor: pointer; /* Show pointer cursor on hover */
+    padding: 0;
+}
+
+.button-image
+{
+    width: 100%;
+    background-color: #808080;
+    transition: transform 0.3s ease;
+}
+
+.button-image:hover
+{
+    transform: translateY(-8%);
+}
+
+#container
+{
+    display: flex;
+    text-align: center;
+    justify-content: center;
+    flex-direction: column;
+    width: 95vw;
+    height: 40vh;
+    overflow: hidden; /* Hide any overflow content */
+}
+
+#image-container
+{
+    display: flex;
+    text-align: center;
+    justify-content: center;
+    width: 60vw;
+    height: 60vh;
+    background-color: lightgrey; /* Set a background color for visibility */
+    overflow: hidden; /* Hide any overflow content */
+}
+
+#photo
+{
+    max-width: 100%; /* Ensure the image fits within the width of the container */
+    max-height: 100%; /* Ensure the image fits within the height of the container */
+    object-fit: contain; /* Preserve aspect ratio of the image */
+}

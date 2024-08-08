@@ -1,0 +1,1 @@
+short GND <-> 10O
