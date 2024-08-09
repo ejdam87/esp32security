@@ -11,8 +11,9 @@
   copies or substantial portions of the Software.
 *********/
 
+#include "credentials.h" // secret stuff
+
 #include "WiFi.h"
-#include "credentials.h"
 #include "esp_camera.h"
 #include "esp_timer.h"
 #include "img_converters.h"
@@ -24,14 +25,21 @@
 #include <StringArray.h>
 #include <SPIFFS.h>
 #include <FS.h>
+#include <esp_now.h>
+#include <time.h>
+
+const char* TIMEZONE = "CET-1CEST,M3.5.0/02:00:00,M10.5.0/03:00:00";
+const char* NTP_SERVER = "pool.ntp.org";
+
+bool flashlight_on = false;
+struct tm sensor_trigger_time = {0};
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
-boolean takeNewPhoto = false;
-
-// Photo File Name to save in SPIFFS
-#define FILE_PHOTO "/photo.jpg"
+// Photo File names to save in SPIFFS
+#define USER_PHOTO "/user_photo.jpg"
+#define SENSOR_PHOTO "/sensor_photo.jpg"
 
 // OV2640 camera module pins (CAMERA_MODEL_AI_THINKER)
 #define PWDN_GPIO_NUM     32
@@ -53,22 +61,50 @@ boolean takeNewPhoto = false;
 
 #define FLASHLIGHT         4
 
-bool flashlight_on = false;
+// callback function that will be executed when data is received
+void OnDataRecv(const esp_now_recv_info* mac, const uint8_t *incomingData, int len)
+{
+  Serial.println("Motion sensor signal received");
+  Serial.println("Capturing the photo...");
+  capturePhotoSaveSpiffs(SENSOR_PHOTO);
+  Serial.println("Capturing receiving time..."); 
+  getLocalTime(&sensor_trigger_time);
+}
 
 void setup() {
 
   // Initialize serial port for debugging purposes
   Serial.begin(115200);
 
+  // --- ESP-NOW communication with motion sensor
+  WiFi.mode(WIFI_AP_STA);
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  else
+  {
+    Serial.println("ESP-NOW initialized successfully");
+  }
+  
+  // Once ESPNow is successfully Init, we will register for recv CB to
+  // get recv packer info
+  esp_now_register_recv_cb(OnDataRecv);
+  // ---
+
   // Initialize flashlight pin
   pinMode(FLASHLIGHT, OUTPUT);
 
   // Connect to Wi-Fi
-  WiFi.begin(SSID, PASSWORD);
+  WiFi.begin(SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
     Serial.println("Connecting to WiFi...");
   }
+
+  // Synchronize time
+  configTzTime(TIMEZONE, NTP_SERVER);
 
   // Initialize file system (storing frontend files and captured photos)
   if (!SPIFFS.begin(true)) {
@@ -152,10 +188,10 @@ void setup() {
     request->send(SPIFFS, "/motion.png");
   });
 
-  // functional responses
+  // --- functional responses
   server.on("/capture", HTTP_GET, [](AsyncWebServerRequest * request) {
-    capturePhotoSaveSpiffs();
-    request->send(SPIFFS, FILE_PHOTO, "image/jpg", false);
+    capturePhotoSaveSpiffs(USER_PHOTO);
+    request->send(SPIFFS, USER_PHOTO, "image/jpg", false);
   });
 
   server.on("/toggle", HTTP_POST, [](AsyncWebServerRequest * request) {
@@ -163,9 +199,13 @@ void setup() {
     digitalWrite(FLASHLIGHT, flashlight_on);
   });
 
-  server.on("/motion", HTTP_POST, [](AsyncWebServerRequest * request) {
-    // TODO
+  server.on("/motion", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char timeString[64];
+    strftime(timeString, sizeof(timeString), "%A, %B %d %Y %H:%M:%S", &sensor_trigger_time);
+    Serial.println(timeString);
+    request->send(200, "text/plain", timeString);
   });
+  // ---
 
   // Start server
   server.begin();
@@ -173,13 +213,13 @@ void setup() {
 
 void loop() {}
 
-bool checkPhoto( fs::FS &fs ) {
-  File f_pic = fs.open( FILE_PHOTO );
+bool checkPhoto( fs::FS &fs, const char* path ) {
+  File f_pic = fs.open(path);
   unsigned int pic_sz = f_pic.size();
   return ( pic_sz > 100 );
 }
 
-void capturePhotoSaveSpiffs( void ) {
+void capturePhotoSaveSpiffs( const char* path ) {
   camera_fb_t * fb = NULL; // pointer
   bool ok = 0; // Boolean indicating if the picture has been taken correctly
 
@@ -194,8 +234,8 @@ void capturePhotoSaveSpiffs( void ) {
     }
 
     // Photo file name
-    Serial.printf("Picture file name: %s\n", FILE_PHOTO);
-    File file = SPIFFS.open(FILE_PHOTO, FILE_WRITE);
+    Serial.printf("Picture file name: %s\n", path);
+    File file = SPIFFS.open(path, FILE_WRITE);
 
     // Insert the data in the photo file
     if (!file) {
@@ -204,7 +244,7 @@ void capturePhotoSaveSpiffs( void ) {
     else {
       file.write(fb->buf, fb->len); // payload (image), payload length
       Serial.print("The picture has been saved in ");
-      Serial.print(FILE_PHOTO);
+      Serial.print(path);
       Serial.print(" - Size: ");
       Serial.print(file.size());
       Serial.println(" bytes");
@@ -214,6 +254,6 @@ void capturePhotoSaveSpiffs( void ) {
     esp_camera_fb_return(fb);
 
     // check if file has been correctly saved in SPIFFS
-    ok = checkPhoto(SPIFFS);
+    ok = checkPhoto(SPIFFS, path);
   } while ( !ok );
 }
