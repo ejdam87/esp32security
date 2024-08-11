@@ -71,7 +71,8 @@ void OnDataRecv(const esp_now_recv_info* mac, const uint8_t *incomingData, int l
   getLocalTime(&sensor_trigger_time);
 }
 
-void setup() {
+void setup()
+{
 
   // Initialize serial port for debugging purposes
   Serial.begin(115200);
@@ -79,7 +80,8 @@ void setup() {
   // --- ESP-NOW communication with motion sensor
   WiFi.mode(WIFI_AP_STA);
 
-  if (esp_now_init() != ESP_OK) {
+  if (esp_now_init() != ESP_OK)
+  {
     Serial.println("Error initializing ESP-NOW");
     return;
   }
@@ -98,7 +100,8 @@ void setup() {
 
   // Connect to Wi-Fi
   WiFi.begin(SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(1000);
     Serial.println("Connecting to WiFi...");
   }
@@ -107,11 +110,13 @@ void setup() {
   configTzTime(TIMEZONE, NTP_SERVER);
 
   // Initialize file system (storing frontend files and captured photos)
-  if (!SPIFFS.begin(true)) {
+  if (!SPIFFS.begin(true))
+  {
     Serial.println("An Error has occurred while mounting SPIFFS");
     ESP.restart();
   }
-  else {
+  else
+  {
     delay(500);
     Serial.println("SPIFFS mounted successfully");
   }
@@ -146,38 +151,78 @@ void setup() {
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
 
-  if (psramFound()) {
+  if (psramFound())
+  {
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
     config.fb_count = 2;
-  } else {
+  }
+  else
+  {
     config.frame_size = FRAMESIZE_SVGA;
     config.jpeg_quality = 12;
     config.fb_count = 1;
   }
   // Camera init
   esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
+  if (err != ESP_OK)
+  {
     Serial.printf("Camera init failed with error 0x%x", err);
     ESP.restart();
   }
 
   // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/index.html");
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request)
+  {
+    if (!isAuthenticated(request))
+    {
+      if(!request->authenticate(USERNAME, USER_PASSWORD))
+      {
+        return request->requestAuthentication();
+      }
+      AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/index.html");
+      response->addHeader("Set-Cookie", SESSION_TOKEN);
+      request->send(response);
+    }
+    else
+    {
+      request->send(SPIFFS, "/index.html");
+    }
   });
 
   // front-end files responses
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/style.css");
+    if (!isAuthenticated(request))
+    {
+      request->send(401, "text/plain", "Authenticate at /");
+    }
+    else
+    {
+      request->send(SPIFFS, "/style.css");
+    }
   });
 
   server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/script.js");
+    if (!isAuthenticated(request))
+    {
+      request->send(401, "text/plain", "Authenticate at /");
+    }
+    else
+    {
+      request->send(SPIFFS, "/script.js");
+    }
   });
 
   server.on("/capture-icon.png", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(SPIFFS, "/capture-icon.png");
+  });
+
+  server.on("/placeholder.png", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/placeholder.png");
+  });
+
+  server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/favicon.ico");
   });
 
   server.on("/flashlight.png", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -190,20 +235,42 @@ void setup() {
 
   // --- functional responses
   server.on("/capture", HTTP_GET, [](AsyncWebServerRequest * request) {
-    capturePhotoSaveSpiffs(USER_PHOTO);
-    request->send(SPIFFS, USER_PHOTO, "image/jpg", false);
+    if (!isAuthenticated(request))
+    {
+      request->send(401, "text/plain", "Authenticate at /");
+    }
+    else
+    {
+      capturePhotoSaveSpiffs(USER_PHOTO);
+      request->send(SPIFFS, USER_PHOTO, "image/jpg", false);
+    }
   });
 
   server.on("/toggle", HTTP_POST, [](AsyncWebServerRequest * request) {
-    flashlight_on = !flashlight_on;
-    digitalWrite(FLASHLIGHT, flashlight_on);
+    if (!isAuthenticated(request))
+    {
+      request->send(401, "text/plain", "Authenticate at /");
+    }
+    else
+    {
+      flashlight_on = !flashlight_on;
+      digitalWrite(FLASHLIGHT, flashlight_on);
+      request->send(204);
+    }
   });
 
   server.on("/motion", HTTP_GET, [](AsyncWebServerRequest *request) {
-    char timeString[64];
-    strftime(timeString, sizeof(timeString), "%A, %B %d %Y %H:%M:%S", &sensor_trigger_time);
-    Serial.println(timeString);
-    request->send(200, "text/plain", timeString);
+    if (!isAuthenticated(request))
+    {
+      request->send(401, "text/plain", "Authenticate at /");
+    }
+    else
+    {
+      char timeString[64];
+      strftime(timeString, sizeof(timeString), "%A, %B %d %Y %H:%M:%S", &sensor_trigger_time);
+      Serial.println(timeString);
+      request->send(200, "text/plain", timeString);
+    }
   });
   // ---
 
@@ -213,22 +280,40 @@ void setup() {
 
 void loop() {}
 
-bool checkPhoto( fs::FS &fs, const char* path ) {
+bool isAuthenticated(AsyncWebServerRequest *request)
+{
+  if (request->hasHeader("Cookie"))
+  {
+    AsyncWebHeader* cookie = request->getHeader("Cookie");
+    String cookieValue = cookie->value();
+    if (cookieValue.indexOf(SESSION_TOKEN) != -1)
+    {
+      return true; // User is authenticated
+    }
+  }
+  return false; // User is not authenticated
+}
+
+bool checkPhoto( fs::FS &fs, const char* path )
+{
   File f_pic = fs.open(path);
   unsigned int pic_sz = f_pic.size();
   return ( pic_sz > 100 );
 }
 
-void capturePhotoSaveSpiffs( const char* path ) {
+void capturePhotoSaveSpiffs( const char* path )
+{
   camera_fb_t * fb = NULL; // pointer
   bool ok = 0; // Boolean indicating if the picture has been taken correctly
 
-  do {
+  do
+  {
     Serial.println("Taking a photo...");
 
     // Take a photo with the camera
     fb = esp_camera_fb_get();
-    if (!fb) {
+    if (!fb)
+    {
       Serial.println("Camera capture failed");
       return;
     }
@@ -238,10 +323,12 @@ void capturePhotoSaveSpiffs( const char* path ) {
     File file = SPIFFS.open(path, FILE_WRITE);
 
     // Insert the data in the photo file
-    if (!file) {
+    if (!file)
+    {
       Serial.println("Failed to open file in writing mode");
     }
-    else {
+    else
+    {
       file.write(fb->buf, fb->len); // payload (image), payload length
       Serial.print("The picture has been saved in ");
       Serial.print(path);
