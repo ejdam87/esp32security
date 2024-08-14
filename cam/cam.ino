@@ -1,14 +1,7 @@
 /*********
-  Rui Santos
-  Complete project details at https://RandomNerdTutorials.com/esp32-cam-take-photo-display-web-server/
-  
-  IMPORTANT!!! 
-   - Select Board "AI Thinker ESP32-CAM"
-   - GPIO 0 must be connected to GND to upload a sketch
-   - After connecting GPIO 0 to GND, press the ESP32-CAM on-board RESET button to put your board in flashing mode
-  
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
+  Original code taken from
+  - Rui Santos
+    Complete project details at https://RandomNerdTutorials.com/esp32-cam-take-photo-display-web-server/
 *********/
 
 #include "credentials.h" // secret stuff
@@ -18,8 +11,8 @@
 #include "esp_timer.h"
 #include "img_converters.h"
 #include "Arduino.h"
-#include "soc/soc.h"           // Disable brownour problems
-#include "soc/rtc_cntl_reg.h"  // Disable brownour problems
+#include "soc/soc.h"           // Disable brownout problems
+#include "soc/rtc_cntl_reg.h"  // Disable brownout problems
 #include "driver/rtc_io.h"
 #include <ESPAsyncWebServer.h>
 #include <StringArray.h>
@@ -266,10 +259,16 @@ void setup()
     }
     else
     {
-      char timeString[64];
-      strftime(timeString, sizeof(timeString), "%A, %B %d %Y %H:%M:%S", &sensor_trigger_time);
-      Serial.println(timeString);
-      request->send(200, "text/plain", timeString);
+      if (sensor_trigger_time.tm_year == 0)
+      {
+        request->send(200, "text/plain", "No trigger so far");
+      }
+      else
+      {
+        char timeString[64];
+        strftime(timeString, sizeof(timeString), "%A, %B %d %Y %H:%M:%S", &sensor_trigger_time);
+        request->send(200, "text/plain", timeString);
+      }
     }
   });
   // ---
