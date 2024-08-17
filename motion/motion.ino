@@ -1,11 +1,20 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <UniversalTelegramBot.h>   // Universal Telegram Bot Library written by Brian Lough: https://github.com/witnessmenow/Universal-Arduino-Telegram-Bot
+#include <ArduinoJson.h>
+
+#include "credentials.h"
+
+// --- Telegram init
+WiFiClientSecure client;
+UniversalTelegramBot bot(TELEGRAM_BOT_TOKEN, client);
+// ---
 
 int SENSOR_PIN = 25;
 volatile bool motion = false;
 uint8_t receiverAddress[] = {0x7c, 0x9e, 0xbd, 0xe3, 0x68, 0x8c};
-const char* SSID = "ZTE-HDCTCY";
 
 void IRAM_ATTR detected()
 {
@@ -31,6 +40,8 @@ int32_t getWiFiChannel(const char *ssid) {
 
 void setup()
 {
+
+  Serial.begin(115200);
 
   // --- ESP-NOW initialization
   // Set device as a Wi-Fi Station
@@ -61,6 +72,16 @@ void setup()
   }
   // ---
 
+  // --- telegram
+  WiFi.begin(SSID, WIFI_PASSWORD);
+  client.setCACert(TELEGRAM_CERTIFICATE_ROOT);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi..");
+  }
+  Serial.println("Successfully connected to WiFi");
+  // ---
+
   // --- Sensor initialization
   pinMode(SENSOR_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(SENSOR_PIN), detected, RISING);
@@ -80,6 +101,8 @@ void loop()
     else {
       Serial.println("Error sending the data");
     }
+
+    bot.sendMessage(CHAT_ID, "Motion sensor triggered!");
     motion = false;
   }
   delay(1000);
