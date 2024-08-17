@@ -7,6 +7,7 @@ body
     align-items: center;
     flex-direction: column;
     background-color: #808080;
+    height: 130vh;
 }
 
 div
@@ -74,4 +75,51 @@ div
     max-width: 100%; /* Ensure the image fits within the width of the container */
     max-height: 100%; /* Ensure the image fits within the height of the container */
     object-fit: cover; /* Preserve aspect ratio of the image */
+}
+
+.switch {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0.5%;
+}
+
+.switch #photo-select {
+    display: none;
+}
+
+.slider {
+    position: relative;
+    width: 3rem;;
+    height: 1.5rem;
+    background-color: #ccc;
+    border-radius: 1.5rem;
+    cursor: pointer;
+    transition: 0.4s;
+}
+
+.slider:before {
+    content: "";
+    position: absolute;
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 50%;
+    background-color: white;
+    transition: 0.4s;
+    left: 0.15rem;
+    top: 0.15rem;
+}
+
+#photo-select:checked + .slider {
+    background-color: #606060;
+}
+
+#photo-select:checked + .slider:before {
+    transform: translateX(100%);
+}
+
+.switch-text {
+    margin-left: 0.5rem;
+    font-weight: bold;
 }

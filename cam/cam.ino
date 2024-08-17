@@ -252,7 +252,7 @@ void setup()
     }
   });
 
-  server.on("/motion", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/motion-time", HTTP_GET, [](AsyncWebServerRequest *request) {
     if (!isAuthenticated(request))
     {
       request->send(401, "text/plain", "Authenticate at /");
@@ -268,6 +268,24 @@ void setup()
         char timeString[64];
         strftime(timeString, sizeof(timeString), "%A, %B %d %Y %H:%M:%S", &sensor_trigger_time);
         request->send(200, "text/plain", timeString);
+      }
+    }
+  });
+
+  server.on("/motion-picture", HTTP_GET, [](AsyncWebServerRequest * request) {
+    if (!isAuthenticated(request))
+    {
+      request->send(401, "text/plain", "Authenticate at /");
+    }
+    else
+    {
+      if (SPIFFS.exists(SENSOR_PHOTO))
+      {
+        request->send(SPIFFS, SENSOR_PHOTO, "image/jpg", false);
+      }
+      else
+      {
+        request->send(SPIFFS, "/placeholder.png");
       }
     }
   });
