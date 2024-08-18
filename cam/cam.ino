@@ -285,7 +285,7 @@ void setup()
       }
       else
       {
-        request->send(SPIFFS, "/placeholder.png");
+        request->send(SPIFFS, "/placeholder.png", "image/png", false);
       }
     }
   });
