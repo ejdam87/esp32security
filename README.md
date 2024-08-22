@@ -20,6 +20,13 @@
 ![Scheme](https://github.com/ejdam87/esp32security/blob/main/doc_photo/scheme.png)
 
 ## Code
+Both modules need hidden file `credentials.h` which stores secrets only known to the administrator of the system. This includes:
+- SSID and password for the WiFi connection (necessary for both modules)
+- telegram bot token and user ID (only for motion module)
+- webserver authentication name, password, and token (only for camera module)
+
+The codebase presented in this repository does not include such files due to privacy preservation. You should include your own `credentials.h` files for both modules.
+
 ### Motion module
 ESP-WROOM32 is running the code shown in `motion` directory. The board is listening for sensor trigger at GPIO25 pin. After the trigger, a telegram notification is sent to the client. Simultaneously, the board sends a signal that the motion sensor was triggered to ESP32-CAM board using ESP-NOW wireless comunication protocol.
 
